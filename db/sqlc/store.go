@@ -86,22 +86,34 @@ func (s *Store) TransferTx(ctx context.Context, arg TransferTxParams) (TransferT
 		}); err != nil {
 			return err
 		}
-		// there are special dead lock when use sql as "select * frmo accounts where id = $id for update" to select account
-		// then update account balance, when do this the select clouse will wait "create transfer" to release Exclusive lock to get shared lock
-		// when other gorountine select for update aim to get share lock, this will be cause dead lock
-		result.FromAccount, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{Amount: -arg.Amount, ID: arg.FromAccountID})
 
-		if err != nil {
-			return err
-		}
-
-		result.ToAccount, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{Amount: arg.Amount, ID: arg.ToAccountID})
-
-		if err != nil {
-			return err
+		// there are also a potential dead lock in the update order
+		// like this: transaction1: "update account1 balance; update account2 balance", transaction2: "update account2 balance; update account1 balance"
+		// so you should update in some order
+		if arg.FromAccountID < arg.ToAccountID {
+			result.FromAccount, result.ToAccount, err = s.addMoney(ctx, amountTip{arg.FromAccountID, -arg.Amount}, amountTip{arg.ToAccountID, arg.Amount})
+		} else {
+			result.ToAccount, result.FromAccount, err = s.addMoney(ctx, amountTip{arg.FromAccountID, -arg.Amount}, amountTip{arg.ToAccountID, arg.Amount})
 		}
 
 		return nil
 	})
 	return result, err
+}
+
+type amountTip struct {
+	accountID int32
+	amount    int32
+}
+
+func (s *Store) addMoney(ctx context.Context, fromTip amountTip, toTip amountTip) (fromAccount Account, toAccount Account, err error) {
+	fromAccount, err = s.AddAccountBalance(ctx, AddAccountBalanceParams{Amount: fromTip.amount, ID: fromTip.accountID})
+	if err != nil {
+		return
+	}
+	toAccount, err = s.AddAccountBalance(ctx, AddAccountBalanceParams{Amount: toTip.amount, ID: toTip.accountID})
+	if err != nil {
+		return
+	}
+	return
 }
