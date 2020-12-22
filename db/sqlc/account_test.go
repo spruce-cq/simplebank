@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spruce-cq/windy/util"
+	"github.com/spruce-cq/simplebank/util"
 	"github.com/stretchr/testify/require"
 )
 
