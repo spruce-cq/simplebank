@@ -2,7 +2,6 @@ package api
 
 import (
 	"database/sql"
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -67,19 +66,13 @@ func (s *Server) listAccounts(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, errResponse(err))
 		return
 	}
-	fmt.Println(req)
-	fmt.Println(ctx.Query("page_size"))
 	arg := db.ListAccountsParams{
-		Offset: req.PageID,
+		Offset: (req.PageID - 1) * req.PageSize,
 		Limit:  req.PageSize,
 	}
 
 	accounts, err := s.store.ListAccounts(ctx, arg)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			ctx.JSON(http.StatusNotFound, errResponse(err))
-			return
-		}
 		ctx.JSON(http.StatusInternalServerError, errResponse(err))
 		return
 	}
